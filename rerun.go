@@ -161,7 +161,7 @@ func setup(buildpath string, args []string) (runch chan bool, succ bool) {
 
 	pkg, err := build.Import(buildpath, "", 0)
 	if err != nil {
-		log.Printf("import failed")
+		log.Print(err.Error())
 		succ = false
 		return
 	}
@@ -183,26 +183,6 @@ func setup(buildpath string, args []string) (runch chan bool, succ bool) {
 	if !(*never_run) {
 		runch = run(binName, binPath, args)
 	}
-
-	/*
-			no_run := false
-			if *do_tests {
-				passed, _ := test(buildpath)
-				if !passed {
-					no_run = true
-				}
-			}
-
-			if *do_build && !no_run {
-				gobuild(buildpath)
-			}
-
-			_, ierr := install(buildpath)
-
-		if !no_run && !(*never_run) && ierr == nil {
-			runch <- true
-		}
-	*/
 
 	succ = true
 	return
