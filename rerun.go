@@ -25,7 +25,7 @@ var (
 	race_detector = flag.Bool("race", false, "Run program and tests with the race detector")
 )
 
-func install(buildpath, lastError string) (installed bool, errorOutput string, err error) {
+func install(buildpath string) (installed bool, err error) {
 	cmdline := []string{"go", "get"}
 
 	if *race_detector {
@@ -43,10 +43,7 @@ func install(buildpath, lastError string) (installed bool, errorOutput string, e
 
 	// when there is any output, the go command failed.
 	if buf.Len() > 0 {
-		errorOutput = buf.String()
-		if errorOutput != lastError {
-			fmt.Print(errorOutput)
-		}
+		fmt.Print(buf.String())
 		err = errors.New("compile error")
 		return
 	}
@@ -197,8 +194,7 @@ func rerun(buildpath string, args []string) (err error) {
 		gobuild(buildpath)
 	}
 
-	var errorOutput string
-	_, errorOutput, ierr := install(buildpath, errorOutput)
+	_, ierr := install(buildpath)
 	if !no_run && !(*never_run) && ierr == nil {
 		runch <- true
 	}
@@ -244,7 +240,7 @@ func rerun(buildpath string, args []string) (err error) {
 
 		var installed bool
 		// rebuild
-		installed, errorOutput, _ = install(buildpath, errorOutput)
+		installed, _ = install(buildpath)
 		if !installed {
 			continue
 		}
