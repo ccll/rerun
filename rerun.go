@@ -146,10 +146,7 @@ func getWatcher(buildpath string) (watcher *fsnotify.Watcher, err error) {
 }
 
 func addToWatcher(watcher *fsnotify.Watcher, importpath string, watching map[string]bool) {
-	pkg, err := build.Import(importpath, "", 0)
-	if err != nil {
-		return
-	}
+	pkg, _ := build.Import(importpath, "", 0)
 	if pkg.Goroot {
 		return
 	}
