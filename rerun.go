@@ -156,16 +156,19 @@ func addToWatcher(watcher *fsnotify.Watcher, importpath string, watching map[str
 	}
 }
 
-func rerun(buildpath string, args []string) (err error) {
+func setup(buildpath string, args []string) (runch chan bool, succ bool) {
 	log.Printf("setting up %s %v", buildpath, args)
 
 	pkg, err := build.Import(buildpath, "", 0)
 	if err != nil {
+		log.Printf("import failed")
+		succ = false
 		return
 	}
 
 	if pkg.Name != "main" {
-		err = errors.New(fmt.Sprintf("expected package %q, got %q", "main", pkg.Name))
+		log.Printf("expected package %q, got %q", "main", pkg.Name)
+		succ = false
 		return
 	}
 
@@ -177,26 +180,63 @@ func rerun(buildpath string, args []string) (err error) {
 		binPath = filepath.Join(pkg.BinDir, binName)
 	}
 
-	var runch chan bool
 	if !(*never_run) {
 		runch = run(binName, binPath, args)
 	}
 
-	no_run := false
+	/*
+			no_run := false
+			if *do_tests {
+				passed, _ := test(buildpath)
+				if !passed {
+					no_run = true
+				}
+			}
+
+			if *do_build && !no_run {
+				gobuild(buildpath)
+			}
+
+			_, ierr := install(buildpath)
+
+		if !no_run && !(*never_run) && ierr == nil {
+			runch <- true
+		}
+	*/
+
+	succ = true
+	return
+}
+
+func buildTestRun(buildpath string, runch chan bool) {
+	// rebuild
+	installed, _ := install(buildpath)
+	if !installed {
+		return
+	}
+
 	if *do_tests {
 		passed, _ := test(buildpath)
 		if !passed {
-			no_run = true
+			return
 		}
 	}
 
-	if *do_build && !no_run {
+	if *do_build {
 		gobuild(buildpath)
 	}
 
-	_, ierr := install(buildpath)
-	if !no_run && !(*never_run) && ierr == nil {
+	// rerun. if we're only testing, sending
+	if !(*never_run && runch != nil) {
 		runch <- true
+	}
+}
+
+func rerun(buildpath string, args []string) (err error) {
+	runch, isSetup := setup(buildpath, args)
+
+	if isSetup {
+		buildTestRun(buildpath, runch)
 	}
 
 	var watcher *fsnotify.Watcher
@@ -223,6 +263,7 @@ func rerun(buildpath string, args []string) (err error) {
 
 			}
 		}(watcher.Event)
+
 		// create a new watcher
 		log.Println("rescanning")
 		watcher, err = getWatcher(buildpath)
@@ -238,27 +279,13 @@ func rerun(buildpath string, args []string) (err error) {
 			}
 		}(watcher.Error)
 
-		var installed bool
-		// rebuild
-		installed, _ = install(buildpath)
-		if !installed {
-			continue
+		// Re-run setup
+		if !isSetup {
+			runch, isSetup = setup(buildpath, args)
 		}
 
-		if *do_tests {
-			passed, _ := test(buildpath)
-			if !passed {
-				continue
-			}
-		}
-
-		if *do_build {
-			gobuild(buildpath)
-		}
-
-		// rerun. if we're only testing, sending
-		if !(*never_run) {
-			runch <- true
+		if isSetup {
+			buildTestRun(buildpath, runch)
 		}
 	}
 	return
